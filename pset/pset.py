@@ -2,34 +2,47 @@ import numpy as np
 import tensorflow as tf
 
 def create_traces(model):
-  return [np.zeros_like(w) for w in model.get_weights()]
+  return [np.zeros_like(w, dtype="float32") for w in model.trainable_variables]
 
-def get_action_and_gradient(model, state, tau, scale_exploration=False):
+#TODO: use truncated normal
+#TODO: support more than 1/2d weights/bias
+def xavier_exploration(theta, tau):
+  shapes = [t.shape for t in theta]
+  fan_ins = [s[0] if len(s) == 2 else np.prod(s) for s in shapes]
+  fan_outs = [s[1] if len(s) == 2 else np.prod(s) for s in shapes]
+  xavier_stdevs = [np.sqrt(2 / (fin + fout)) for fin, fout in zip(fan_ins, fan_outs)]
+  d_theta = [np.random.normal(0, std * tau, size=shape).astype("float32") for std, shape in zip(xavier_stdevs, shapes)]
+
+  return d_theta
+
+#TODO: support recurrent
+def get_action_and_gradient(model, state, tau, use_xavier=True):
   #get weights from model
   theta = model.get_weights()
-  #modulate weights for exploration
-  if scale_exploration == True:
-    theta_pred = [np.random.normal(w, np.abs(w) * tau) for w in theta]
-  elif callable(scale_exploration):
-    theta_pred = [w.copy() + np.random.normal(size=w.shape) * tau * scale_exploration(w) for w in theta]
+  if use_xavier:
+    d_theta = xavier_exploration(theta, tau)
   else:
-    theta_pred = [w.copy() + np.random.normal(size=w.shape) * tau for w in theta]
-  model.set_weights(theta_pred)
+    d_theta = [np.random.normal(0, tau, size=w.shape) for w in theta]
+
+  #apply d_theta
+  theta_temp = [w + d for w, d in zip(theta, d_theta)]
+  model.set_weights(theta_temp)
   #predict action
   action = model.predict(np.expand_dims(state, 0))[0]
-  #calculate "gradient"
-  d_theta = [a - b for a, b in zip(theta_pred, theta)]
-
   #restore weights
   model.set_weights(theta)
+
   #return action and "gradient"
   return action, d_theta
 
 #TODO: support using optimizers
-def step_weights(model, traces, alpha, advantage):
-  weights = model.get_weights()
-  # update theta based on reward-modulated traces (training step)
-  #TODO: should probably use assign_add
-  weights = [w + t * advantage * alpha for w, t in zip(weights, traces)]
-
-  model.set_weights(weights)
+def step_weights(model, traces, lr, advantage, optimizer=None):
+  if optimizer == None:
+    #step direction
+    alpha = lr * advantage
+    for weight, trace in zip(model.trainable_variables, traces):
+      weight.assign_add(trace * alpha) #"gradient" ascent
+  else:
+    traces2 = [-t * advantage for t in traces] #modulate by reward
+    #then apply normally
+    optimizer.apply_gradients(zip(traces2, model.trainable_variables))

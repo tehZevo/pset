@@ -6,7 +6,5 @@ setup(name='pset',
     'ml_utils @ git+https://github.com/tehzevo/ml-utils@master#egg=ml_utils',
     'tensorflow',
     'numpy'
-    #'gym',
-    #'keras'
   ],
   packages=find_packages())
