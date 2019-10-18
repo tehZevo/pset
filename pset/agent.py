@@ -54,7 +54,7 @@ class Agent():
     if self.alt_trace_method:
       self.traces = [t * self.lambda_ + dt for t, dt in zip(self.traces, dtheta)]
     else:
-      self.traces = [t * self.lambda_ + dt * (1 - self.lambda_)]
+      self.traces = [t * self.lambda_ + dt * (1 - self.lambda_) for t, dt in zip(self.traces, dtheta)]
 
     #onehot encode actual action (via boltzmann exploration)
     if self.action_type == "discrete":

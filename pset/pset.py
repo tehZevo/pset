@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 def create_traces(model):
-  return [np.zeros_like(w, dtype="float32") for w in model.trainable_variables]
+  return [np.zeros(w.shape, dtype="float32") for w in model.trainable_variables]
 
 #TODO: use truncated normal
 #TODO: support more than 1/2d weights/bias
@@ -43,6 +43,6 @@ def step_weights(model, traces, lr, advantage, optimizer=None):
     for weight, trace in zip(model.trainable_variables, traces):
       weight.assign_add(trace * alpha) #"gradient" ascent
   else:
-    traces2 = [-t * advantage for t in traces] #modulate by reward
+    traces2 = [(-t * advantage).astype("float32") for t in traces] #modulate by reward
     #then apply normally
     optimizer.apply_gradients(zip(traces2, model.trainable_variables))
