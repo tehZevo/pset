@@ -45,6 +45,6 @@ def step_weights(model, traces, lr, reward):
     weight.assign_add(trace * alpha) #"gradient" ascent
 
 def step_weights_opt(model, traces, reward, optimizer):
-  traces2 = [(-t * advantage).astype("float32") for t in traces] #modulate by reward
+  traces2 = [(-t * reward).astype("float32") for t in traces] #modulate by reward
   #then apply normally
   optimizer.apply_gradients(zip(traces, model.trainable_variables))
