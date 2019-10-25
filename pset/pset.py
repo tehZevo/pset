@@ -28,21 +28,23 @@ def get_action_and_gradient(model, state, tau, use_xavier=True):
   theta_temp = [w + d for w, d in zip(theta, d_theta)]
   model.set_weights(theta_temp)
   #predict action
-  action = model.predict(np.expand_dims(state, 0))[0]
+  #action = model.predict(np.expand_dims(state, 0))[0]
+  #https://github.com/keras-team/keras/issues/13118
+  #https://github.com/tensorflow/tensorflow/issues/33009
+  action = model.predict_on_batch(np.expand_dims(state, 0))[0]
   #restore weights
   model.set_weights(theta)
 
   #return action and "gradient"
   return action, d_theta
 
-#TODO: support using optimizers
-def step_weights(model, traces, lr, advantage, optimizer=None):
-  if optimizer == None:
-    #step direction
-    alpha = lr * advantage
-    for weight, trace in zip(model.trainable_variables, traces):
-      weight.assign_add(trace * alpha) #"gradient" ascent
-  else:
-    traces2 = [(-t * advantage).astype("float32") for t in traces] #modulate by reward
-    #then apply normally
-    optimizer.apply_gradients(zip(traces2, model.trainable_variables))
+def step_weights(model, traces, lr, reward):
+  #step direction
+  alpha = lr * reward
+  for weight, trace in zip(model.trainable_variables, traces):
+    weight.assign_add(trace * alpha) #"gradient" ascent
+
+def step_weights_opt(model, traces, reward, optimizer):
+  traces2 = [(-t * advantage).astype("float32") for t in traces] #modulate by reward
+  #then apply normally
+  optimizer.apply_gradients(zip(traces, model.trainable_variables))

@@ -13,10 +13,10 @@ from pget import explore_continuous, explore_discrete, explore_multibinary
 
 class Agent():
   """Note: requires TF eager"""
-  def __init__(self, model, alt_trace_method=False, epsilon=1e-7,
-      advantage_clip=1, gamma=0.99, lr=1e-4, lambda_=0.9,
-      regularization_scale=1e-4, optimizer="adam", noise=0.1,
-      initial_deviation=10, use_xavier=True, action_type="continuous"):
+  def __init__(self, model, optimizer=None, action_type="continuous",
+      alt_trace_method=False, epsilon=1e-7, advantage_clip=1, gamma=0.99,
+      lambda_=0.9, regularization=1e-6, noise=0.1, initial_deviation=10,
+      use_xavier=True, use_squared_deviation=True):
     self.model = model
 
     #TODO: is this needed?
@@ -27,17 +27,17 @@ class Agent():
     self.eps = epsilon
     self.advantage_clip = advantage_clip
     self.gamma = gamma
-    self.lr = lr
     self.lambda_ = lambda_
     self.alt_trace_method = alt_trace_method
-    self.regularization = regularization_scale * self.lr
+    self.regularization = regularization
     self.noise = noise
-    self.last_advantage = 0
     self.use_xavier = use_xavier
     self.action_type = action_type.lower()
+    self.optimizer = (optimizer if optimizer is not None else
+      tf.keras.optimizers.Adam(1e-3, clipnorm=1.0))
+    self.use_squared_deviation = use_squared_deviation
 
-    #TODO: support more optimizers by name... or by object
-    self.optimizer = None if optimizer is None else tf.train.AdamOptimizer(self.lr)
+    self.last_advantage = 0
 
     #initialization
     self.traces = create_traces(self.model)
@@ -73,9 +73,13 @@ class Agent():
 
     #update reward mean/deviation
     self.reward_mean += delta_reward * (1 - self.gamma)
-    self.reward_deviation += (np.abs(delta_reward) - self.reward_deviation) * (1 - self.gamma)
+    #TODO: experimental square instead of abs
+    if self.use_squared_deviation:
+      self.reward_deviation += (delta_reward ** 2 - self.reward_deviation) * (1 - self.gamma)
+    else:
+      self.reward_deviation += (np.abs(delta_reward) - self.reward_deviation) * (1 - self.gamma)
     self.last_advantage = advantage
 
     #step network in direction of trace gradient * lr * reward
     apply_regularization(self.model, self.regularization)
-    step_weights(self.model, self.traces, self.lr, advantage, self.optimizer)
+    step_weights_opt(self.model, self.traces, advantage, self.optimizer)
